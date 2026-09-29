@@ -500,3 +500,82 @@ footer.note { text-align: center; color: var(--muted); font-size: 11.5px; paddin
   .atencao-row { grid-template-columns: 52px 1fr; row-gap: 2px; }
   .atencao-row .ar-resultado, .atencao-row .ar-resp { grid-column: 2; }
 }
+
+/* ---------------------------------------------------------------------
+   Padrão visual único das linhas da matriz (Centro Sul): toda linha tem a
+   mesma altura e as mesmas colunas, qualquer que seja o indicador —
+   nome em uma linha (nome completo no tooltip), células mensais só com o
+   número (a unidade fica na coluna UN.), resultado sem quebra de linha e
+   meses anteriores ao início da medição no mesmo formato de caixa.
+   --------------------------------------------------------------------- */
+.matrix-row .mrow-nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrow-top { white-space: nowrap; overflow: hidden; }
+.mrow-unidade-block { white-space: nowrap; }
+.mm-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-cell.mm-na {
+  color: var(--muted); background: var(--surface-2); cursor: default;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.mrow-result-block { flex-basis: 156px; }
+.mrow-resultado {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1 1 auto; min-width: 0; font-size: 14px;
+}
+.mrow-interp { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (min-width: 1101px) {
+  .mrow-id-block { flex-basis: 300px; min-width: 300px; }
+  .mrow-unidade-block { left: 300px; }
+}
+.matrix-row .mrow-nome { font-size: 12.5px; }
+
+/* ---------------------------------------------------------------------
+   One Page para impressão (botão "Imprimir One Page" no Dashboard).
+   Na tela fica escondido; na impressão, só ele aparece — A4 paisagem,
+   cabendo em uma página.
+   --------------------------------------------------------------------- */
+#print-root { display: none; }
+/* modo medição: montado fora da tela com a largura útil de um A4 paisagem,
+   só para calcular se precisa reduzir a escala e caber em uma página */
+#print-root.medindo { display: block; position: absolute; left: -99999px; top: 0; width: 1054px; background: #fff; }
+.filterbar #btn-onepage { margin-left: 8px; white-space: nowrap; }
+@media print {
+  @page { size: A4 landscape; margin: 8mm 9mm; }
+  body.imprimindo-onepage { background: #fff !important; }
+  body.imprimindo-onepage > *:not(#print-root) { display: none !important; }
+  body.imprimindo-onepage #print-root { display: block; }
+  #print-root, #print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-scheme: light; }
+}
+/* estilos do one page (valem na medição e na impressão) */
+#print-root .op-page { font-family: Jost, "Segoe UI", Arial, sans-serif; color: #1c2226; font-size: 8.4pt; line-height: 1.25; }
+#print-root .op-head { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 5px; border-bottom: 2.5px solid #00496a; margin-bottom: 6px; }
+#print-root .op-brand { display: flex; align-items: center; gap: 12px; }
+#print-root .op-brand img { height: 30px; }
+#print-root .op-titulo { font-size: 15pt; font-weight: 700; color: #00496a; letter-spacing: 0.02em; line-height: 1.1; }
+#print-root .op-sub { font-size: 8.5pt; color: #4a565d; }
+#print-root .op-meta { text-align: right; font-size: 8pt; line-height: 1.45; color: #4a565d; }
+#print-root .op-meta strong { color: #1c2226; }
+#print-root .op-tab { width: 100%; border-collapse: collapse; table-layout: fixed; }
+#print-root .op-tab th { font-size: 7pt; font-weight: 500; color: #7c868c; text-transform: uppercase; letter-spacing: 0.04em; text-align: left; padding: 4px 3px; border-bottom: 1px solid #dbdfe3; }
+#print-root .op-tab td { padding: 2.6px 3px; border-bottom: 1px solid #eef1f2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#print-root .op-tab th:nth-child(1) { width: 50px;} #print-root .op-tab th:nth-child(2) { width: 245px;} #print-root .op-tab th:nth-child(3) { width: 84px;} #print-root .op-tab th:nth-child(4) { width: 36px;}
+#print-root .op-tab th.op-atual { width: 98px; text-align: right; } #print-root .op-tab th.op-saude { width: 34px; text-align: center; }
+#print-root .op-tab th.op-m, #print-root .op-tab td.op-m { text-align: center; }
+#print-root .op-id { font-family: "IBM Plex Mono", monospace; font-size: 7.4pt; color: #7c868c; }
+#print-root .op-nome { font-weight: 600; }
+#print-root .op-area, #print-root .op-un { font-size: 7.6pt; color: #4a565d; }
+#print-root .op-un { text-align: center; }
+#print-root .op-m { font-family: "IBM Plex Mono", monospace; font-size: 7.6pt; }
+#print-root .op-vazio, #print-root .op-na { color: #b0b7bb; }
+#print-root .op-atual { text-align: right; font-family: "IBM Plex Mono", monospace; font-weight: 700; color: #00496a; font-size: 8.6pt; }
+#print-root .op-saude { text-align: center; }
+#print-root .op-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: -0.5px; margin: 0 2px 0 8px; }
+#print-root .op-saude .op-dot { margin: 0; }
+#print-root .op-cat td { background: #eef1f2; padding: 3px 6px; border-bottom: 1px solid #dbdfe3; }
+#print-root .op-cat strong { color: #00496a; letter-spacing: 0.06em; font-size: 8.4pt; }
+#print-root .op-cat span { color: #7c868c; font-size: 7.4pt; margin-left: 4px; }
+#print-root .op-atencao td { background: #fbe9e9; }
+#print-root .op-atencao .op-nome { color: #b3261e; }
+#print-root .op-foot { display: flex; justify-content: space-between; margin-top: 7px; padding-top: 5px; border-top: 1px solid #dbdfe3; font-size: 7.2pt; color: #7c868c; }
+#print-root .op-foot .op-dot:first-child { margin-left: 0; }
+#print-root .op-tab tr { page-break-inside: avoid; }
+#print-root .op-tab td.op-m { padding-left: 1px; padding-right: 1px; font-size: 7.2pt; text-overflow: clip; letter-spacing: -0.02em; }

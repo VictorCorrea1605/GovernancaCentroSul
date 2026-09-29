@@ -70,6 +70,20 @@
       default: return String(v);
     }
   }
+  // Só o número, sem o símbolo da unidade — usado nas células mensais da
+  // matriz, onde a unidade já aparece na coluna "UN." da própria linha.
+  // Mantém todas as células do mesmo tamanho, qualquer que seja a unidade.
+  function formatarNumero(v, unidade) {
+    if (v === null || v === undefined || Number.isNaN(v)) return "—";
+    const opt = (min, max) => v.toLocaleString("pt-BR", { minimumFractionDigits: min, maximumFractionDigits: max });
+    switch (unidade) {
+      case "%": return opt(1, 1);
+      case "dias": case "h": case "R$/Mil": return opt(0, 1);
+      case "km/l": return opt(1, 1);
+      case "qtd": case "R$": return Math.round(v).toLocaleString("pt-BR");
+      default: return opt(0, 2);
+    }
+  }
   function competenciaLabel(comp) {
     if (!comp) return "—";
     const [a, m] = comp.split("-").map(Number);
@@ -571,6 +585,7 @@
         <label>Responsável<select id="f-resp"><option value="">Todos</option>${State.usuarios.filter((u) => u.ativo !== false).map((u) => `<option value="${u.id}" ${State.filtros.responsavel === u.id ? "selected" : ""}>${u.nome}</option>`).join("")}</select></label>
         <label>Status<select id="f-status"><option value="">Todos</option>${["verde", "amarelo", "azul", "vermelho", "sem_informacao", "informativo"].map((s) => `<option value="${s}" ${State.filtros.status === s ? "selected" : ""}>${E.STATUS_LABEL[s]}</option>`).join("")}</select></label>
         <button class="clear" id="f-clear">Limpar filtros</button>
+        <button class="btn primary" id="btn-onepage" title="Gera a versão de uma página (A4 paisagem) com a competência e o período selecionados — imprima ou salve como PDF">🖨 Imprimir One Page</button>
       </div>
       ${pontosAtencao.length ? `<div class="atencao-box"><div>⚠️</div><div style="flex:1"><strong>${pontosAtencao.length} indicador(es) pedem atenção</strong> — onde olhar primeiro:
         <div class="atencao-list">${pontosAtencao.slice(0, 12).map((v) => `
@@ -622,24 +637,25 @@
       const semDado = typeof val !== "number";
       const foraDeVigencia = !!indicador.competenciaInicial && comp < indicador.competenciaInicial;
       if (foraDeVigencia) {
-        return `<div class="mm-cell mm-na" title="${competenciaLabel(comp)}: indicador ainda não era medido nesta competência">·</div>`;
+        return `<div class="mm-cell mm-na" title="${competenciaLabel(comp)}: indicador ainda não era medido nesta competência">—</div>`;
       }
       const atrasado = semDado && mesAtual && comp < mesAtual;
       const cls = semDado ? (atrasado ? "mm-vazio mm-atraso" : "mm-vazio") : "";
       const dica = atrasado ? `${competenciaLabel(comp)}: competência já encerrada sem lançamento — clique para lançar` : `${competenciaLabel(comp)}: clique para lançar ou corrigir`;
-      return `<div class="mm-cell mm-editavel ${cls}" title="${dica}" data-editar-mes data-ind="${indicador.id}" data-comp="${comp}">${semDado ? "—" : formatarResultado(val, unidadeMensal)}</div>`;
+      const dicaValor = semDado ? dica : `${competenciaLabel(comp)}: ${formatarResultado(val, unidadeMensal)} — clique para corrigir`;
+      return `<div class="mm-cell mm-editavel ${cls}" title="${dicaValor}" data-editar-mes data-ind="${indicador.id}" data-comp="${comp}">${semDado ? "—" : formatarNumero(val, unidadeMensal)}</div>`;
     }).join("");
     return `<div class="matrix-row ${atencao ? "matrix-row-atencao" : ""}">
       <div class="matrix-row-scroll">
         <div class="mrow-id-block">
           <div class="mrow-top"><span class="mrow-id">${indicador.id}</span><span class="cat-tag" style="font-size:9.5px">${nomeArea(indicador.area)}</span></div>
-          <div class="mrow-nome">${indicador.nome}</div>
-          <div class="mrow-resp" title="Responsável pelo indicador">${respUsuario ? "👤 " + respUsuario.nome : "sem responsável"}</div>
+          <div class="mrow-nome" title="${indicador.nome}">${indicador.nome}</div>
+          <div class="mrow-resp" title="Responsável pelo indicador">${respUsuario ? respUsuario.nome : "sem responsável"}</div>
         </div>
         <div class="mrow-unidade-block" title="Unidade de medida dos valores mensais">${unidadeMensal}</div>
         <div class="mrow-months">${monthCells}</div>
         <div class="mrow-result-block">
-          <span class="mrow-resultado num">${formatarResultado(resultadoCard, unidadeCard)}</span>
+          <span class="mrow-resultado num" title="${formatarResultado(resultadoCard, unidadeCard)}">${formatarResultado(resultadoCard, unidadeCard)}</span>
           ${pillStatusMini(status)}
           <button class="lupa-btn" data-lupa="${indicador.id}" title="Detalhar indicador" aria-label="Detalhar indicador">🔍</button>
         </div>
@@ -962,6 +978,106 @@
         <button type="submit" class="btn primary">${novo ? "Cadastrar responsável" : "Salvar alterações"}</button>
       </form>
     </div></div>`;
+  }
+
+  // ------------------------------------------------------ one page (print)
+  // "Imprimir One Page": monta, num clique, a versão de impressão do
+  // Dashboard (A4 paisagem, uma página) com a mesma competência e o mesmo
+  // período escolhidos na tela, e abre a janela de impressão do navegador
+  // (onde dá para imprimir ou "Salvar como PDF"). Imprime SEMPRE todos os
+  // indicadores ativos — os filtros de área/categoria/status/responsável
+  // da tela não se aplicam, para o one page sair completo.
+  const COR_STATUS_PRINT = { verde: "#0ca30c", amarelo: "#b97d00", vermelho: "#d03b3b", azul: "#2a78d6", sem_informacao: "#c4c9cc", informativo: "#7c868c" };
+
+  function htmlOnePage() {
+    const foco = State.competenciaFoco;
+    const periodoKey = State.periodo || "ano";
+    const competenciasPeriodo = competenciasDoPeriodo(periodoKey, foco);
+    const colunas = competenciasDoAno(foco);
+    const rotulos = mesesCurto(colunas);
+    const visoes = indicadoresVisiveis().map((ind) => visaoIndicadorPeriodo(ind, competenciasPeriodo));
+    const porCat = {};
+    visoes.forEach((v) => { (porCat[v.indicador.categoria] = porCat[v.indicador.categoria] || []).push(v); });
+    const eu = window.Auth && window.Auth.usuarioLogado();
+    const agora = new Date();
+    const emitido = `${agora.toLocaleDateString("pt-BR")} às ${agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}${eu ? ` por ${esc(eu.nome)}` : ""}`;
+    const dot = (status) => `<span class="op-dot" style="background:${COR_STATUS_PRINT[status] || COR_STATUS_PRINT.sem_informacao}"></span>`;
+    const nCols = 4 + colunas.length + 2;
+
+    const corpo = State.categorias.filter((c) => porCat[c.id]).map((cat) => {
+      const linhas = porCat[cat.id].slice().sort((a, b) => a.indicador.id.localeCompare(b.indicador.id)).map((v) => {
+        const ind = v.indicador;
+        const un = ind.unidadeMensal || ind.unidade || "—";
+        const atencao = precisaAtencao(v);
+        const meses = colunas.map((comp) => {
+          if (ind.competenciaInicial && comp < ind.competenciaInicial) return `<td class="op-m op-na">·</td>`;
+          const val = v.serie[comp];
+          return typeof val === "number" ? `<td class="op-m">${formatarNumero(val, un)}</td>` : `<td class="op-m op-vazio">–</td>`;
+        }).join("");
+        return `<tr class="${atencao ? "op-atencao" : ""}">
+          <td class="op-id">${ind.id}</td>
+          <td class="op-nome">${esc(ind.nome)}</td>
+          <td class="op-area">${esc(nomeArea(ind.area))}</td>
+          <td class="op-un">${esc(un)}</td>
+          ${meses}
+          <td class="op-atual">${formatarResultado(v.resultadoCard, v.unidadeCard)}</td>
+          <td class="op-saude">${dot(v.status)}</td>
+        </tr>`;
+      }).join("");
+      return `<tr class="op-cat"><td colspan="${nCols}"><strong>${esc(cat.nome.toUpperCase())}</strong> <span>${porCat[cat.id].length} indicador(es)</span></td></tr>${linhas}`;
+    }).join("");
+
+    return `<div class="op-page">
+      <header class="op-head">
+        <div class="op-brand">
+          <img src="logo.png" alt="Âmbar Energia" />
+          <div><div class="op-titulo">ONE PAGE EXECUTIVO</div><div class="op-sub">Gestão Administrativa · Regional Centro Sul</div></div>
+        </div>
+        <div class="op-meta">
+          <div><strong>Competência de referência:</strong> ${competenciaLabel(foco)}</div>
+          <div>${rotuloPeriodoTexto(competenciasPeriodo).replace("Consolidado de", "<strong>Consolidado:</strong>").replace("Mês de referência:", "<strong>Mês de referência:</strong>")}</div>
+          <div><strong>Emitido em:</strong> ${emitido}</div>
+        </div>
+      </header>
+      <table class="op-tab">
+        <thead><tr><th>ID</th><th>Indicador</th><th>Área</th><th>Un.</th>${rotulos.map((r) => `<th class="op-m">${r}</th>`).join("")}<th class="op-atual">Atual</th><th class="op-saude">Saúde</th></tr></thead>
+        <tbody>${corpo}</tbody>
+      </table>
+      <footer class="op-foot">
+        <div>${dot("verde")} Dentro do esperado ${dot("amarelo")} Atenção ${dot("vermelho")} Fora do esperado ${dot("azul")} Intermediário ${dot("sem_informacao")} Sem informação · – sem lançamento · · fora da medição</div>
+        <div><em>Resultados recalculados a partir dos lançamentos.</em></div>
+      </footer>
+    </div>`;
+  }
+
+  function imprimirOnePage() {
+    let raiz = document.getElementById("print-root");
+    if (!raiz) { raiz = document.createElement("div"); raiz.id = "print-root"; document.body.appendChild(raiz); }
+    raiz.innerHTML = htmlOnePage();
+    // Garante UMA página: mede o conteúdo na largura útil do A4 paisagem
+    // (~1054 × 725 px) e, se passar da altura, reduz a escala por igual.
+    raiz.style.zoom = "";
+    raiz.classList.add("medindo");
+    document.body.classList.add("medindo-onepage");
+    const altura = raiz.scrollHeight;
+    raiz.classList.remove("medindo");
+    document.body.classList.remove("medindo-onepage");
+    const LIMITE = 715;
+    if (altura > LIMITE) raiz.style.zoom = String(Math.max(0.55, LIMITE / altura));
+    const tituloAnterior = document.title;
+    document.title = `One Page Executivo - Centro Sul - ${competenciaLabel(State.competenciaFoco).replace("/", "-")}`;
+    document.body.classList.add("imprimindo-onepage");
+    const limpar = () => {
+      document.body.classList.remove("imprimindo-onepage");
+      document.title = tituloAnterior;
+      raiz.innerHTML = "";
+      window.removeEventListener("afterprint", limpar);
+    };
+    window.addEventListener("afterprint", limpar);
+    // espera o logo carregar antes de abrir a impressão
+    const img = raiz.querySelector("img");
+    const abrir = () => setTimeout(() => window.print(), 50);
+    if (img && !img.complete) { img.onload = abrir; img.onerror = abrir; } else abrir();
   }
 
   // ------------------------------------------------------------- acessos
@@ -1597,6 +1713,7 @@
     const fcat = $("#f-cat"); if (fcat) fcat.addEventListener("change", (e) => { State.filtros.categoria = e.target.value; render(); });
     const fresp = $("#f-resp"); if (fresp) fresp.addEventListener("change", (e) => { State.filtros.responsavel = e.target.value; render(); });
     const fs = $("#f-status"); if (fs) fs.addEventListener("change", (e) => { State.filtros.status = e.target.value; render(); });
+    const bop = $("#btn-onepage"); if (bop) bop.addEventListener("click", imprimirOnePage);
     const fclear = $("#f-clear"); if (fclear) fclear.addEventListener("click", () => { State.filtros = { area: "", categoria: "", status: "", responsavel: "" }; render(); });
     $$("[data-lupa]").forEach((b) => b.addEventListener("click", () => { State.lupaAberta = b.dataset.lupa; render(); }));
     $$("[data-editar-mes]").forEach((b) => b.addEventListener("click", () => {

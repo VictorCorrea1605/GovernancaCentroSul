@@ -149,4 +149,4 @@
    grade e na matriz para o ano ficar completo, mas não aceitam lançamento. */
 .grade-ano tr.linha-na td { background: var(--surface-2); color: var(--muted); }
 .grade-ano td.gm-na { text-align: center; color: var(--muted); }
-.mm-cell.mm-na { color: var(--border-strong); cursor: default; background: transparent; }
+.mm-cell.mm-na { color: var(--muted); cursor: default; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
