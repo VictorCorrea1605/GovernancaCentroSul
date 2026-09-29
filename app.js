@@ -519,16 +519,10 @@
       return true;
     });
 
-    // ---- KPIs executivos (item 7 — nada de "saúde geral" inventada) ----
-    const acompanhados = todos.length;
+    // As caixas de KPI do topo (acompanhados, atenção, deterioração,
+    // atualização) foram retiradas a pedido da regional: o Dashboard abre
+    // direto nos filtros. A lista de pontos de atenção continua, abaixo deles.
     const pontosAtencao = todos.filter(precisaAtencao);
-    const emDeterioracao = todos.filter((v) => {
-      const dir = v.indicador.saude.tipo;
-      if (dir !== "maior_melhor" && dir !== "menor_melhor") return false; // sem direção definida: não entra nessa contagem
-      if (typeof v.resultadoCard !== "number" || typeof v.resultadoAnteriorCard !== "number") return false;
-      return dir === "maior_melhor" ? v.resultadoCard < v.resultadoAnteriorCard : v.resultadoCard > v.resultadoAnteriorCard;
-    });
-    const atualizadosNoPeriodo = todos.filter((v) => v.ultimaComDado === foco);
 
     const competenciasDisponiveis = Array.from(new Set(Object.values(State.competenciasPorIndicador).flatMap((m) => Object.keys(m)))).sort().reverse();
     if (!competenciasDisponiveis.includes(foco)) competenciasDisponiveis.unshift(foco);
@@ -562,21 +556,6 @@
         </div>`).join("");
 
     return `
-      <div class="kpi-row">
-        <div class="stat-tile total"><div class="n num">${acompanhados}</div><div class="l">Indicadores acompanhados</div></div>
-        <div class="stat-tile vermelho"><div class="n num">${pontosAtencao.length}</div><div class="l">Pontos de atenção</div></div>
-        <div class="stat-tile amarelo"><div class="n num">${emDeterioracao.length}</div><div class="l">Em deterioração</div></div>
-        <div class="stat-tile info"><div class="n num">${atualizadosNoPeriodo.length}/${acompanhados}</div><div class="l">Atualização do período</div></div>
-      </div>
-      ${pontosAtencao.length ? `<div class="atencao-box"><div>⚠️</div><div style="flex:1"><strong>${pontosAtencao.length} indicador(es) pedem atenção</strong> — onde olhar primeiro:
-        <div class="atencao-list">${pontosAtencao.slice(0, 12).map((v) => `
-          <button class="atencao-row" data-lupa="${v.indicador.id}">
-            <span class="ar-id">${v.indicador.id}</span>
-            <span class="ar-nome">${v.indicador.nome}</span>
-            <span class="ar-resultado num">${formatarResultado(v.resultadoCard, v.unidadeCard)}</span>
-            <span class="ar-resp">${v.indicador.responsavelId ? nomeUsuario(v.indicador.responsavelId) : "sem responsável"}</span>
-          </button>`).join("")}</div>
-      </div></div>` : ""}
       <div class="filterbar">
         <label>Competência final<select id="f-comp">${competenciasDisponiveis.map((c) => `<option value="${c}" ${c === foco ? "selected" : ""}>${competenciaLabel(c)}</option>`).join("")}</select></label>
         <label title="Define a janela usada para calcular o resultado atual, a tendência e os KPIs — as colunas mensais da matriz abaixo sempre mostram o ano civil completo.">Período<select id="f-periodo">
@@ -593,6 +572,15 @@
         <label>Status<select id="f-status"><option value="">Todos</option>${["verde", "amarelo", "azul", "vermelho", "sem_informacao", "informativo"].map((s) => `<option value="${s}" ${State.filtros.status === s ? "selected" : ""}>${E.STATUS_LABEL[s]}</option>`).join("")}</select></label>
         <button class="clear" id="f-clear">Limpar filtros</button>
       </div>
+      ${pontosAtencao.length ? `<div class="atencao-box"><div>⚠️</div><div style="flex:1"><strong>${pontosAtencao.length} indicador(es) pedem atenção</strong> — onde olhar primeiro:
+        <div class="atencao-list">${pontosAtencao.slice(0, 12).map((v) => `
+          <button class="atencao-row" data-lupa="${v.indicador.id}">
+            <span class="ar-id">${v.indicador.id}</span>
+            <span class="ar-nome">${v.indicador.nome}</span>
+            <span class="ar-resultado num">${formatarResultado(v.resultadoCard, v.unidadeCard)}</span>
+            <span class="ar-resp">${v.indicador.responsavelId ? nomeUsuario(v.indicador.responsavelId) : "sem responsável"}</span>
+          </button>`).join("")}</div>
+      </div></div>` : ""}
       <p class="periodo-label"><span class="tri"></span>
         <span class="periodo-label-text">
           <span>${rotuloPeriodoTexto(competenciasPeriodo)}</span>
