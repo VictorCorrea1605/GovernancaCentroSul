@@ -100,6 +100,13 @@
         });
         break;
       }
+      case "razao_simples": {
+        const den = entradas[indicador.calc.denominadorKey];
+        if (num(den) && den === 0) {
+          erros.push(`Divisão por zero: "${indicador.calc.denominadorLabel || "quantidade"}" é 0. Se não houve movimento no mês, deixe o mês sem lançamento.`);
+        }
+        break;
+      }
       case "media": {
         if (entradas.modo === "bruta") {
           if (num(entradas.qtdRegistros) && entradas.qtdRegistros === 0) {
@@ -405,6 +412,21 @@
         };
       }
 
+      case "razao_simples": {
+        // Ponderado: Σ numerador ÷ Σ denominador do período — nunca a média
+        // dos tickets mensais (um mês com 2 viagens não pesa igual a um com 40).
+        const nP = somaChaveNoPeriodo(entradasPorCompetencia, comDado, c.numeradorKey);
+        const dP = somaChaveNoPeriodo(entradasPorCompetencia, comDado, c.denominadorKey);
+        return {
+          resultado: typeof nP === "number" && typeof dP === "number" && dP > 0 ? nP / dP : null,
+          detalhes: [
+            { label: (c.numeradorLabel || "Numerador") + " (período)", valor: nP },
+            { label: (c.denominadorLabel || "Denominador") + " (período)", valor: dP },
+          ],
+          competenciasComDado: comDado, ultimaComDado,
+        };
+      }
+
       case "razao_agregada": {
         let sN = 0, sD = 0;
         comDado.forEach((comp) => {
@@ -520,6 +542,19 @@
 
       case "snapshot":
         return { resultado: motorSnapshot(entradas, c.campoKey), detalhes: null };
+
+      // Razão simples entre dois campos do mês (ex.: ticket médio = valor
+      // gasto ÷ quantidade). Sem o "× 100" do percentual.
+      case "razao_simples": {
+        const n = entradas[c.numeradorKey], d = entradas[c.denominadorKey];
+        return {
+          resultado: typeof n === "number" && typeof d === "number" && d > 0 ? n / d : null,
+          detalhes: [
+            { label: c.numeradorLabel || "Numerador", valor: n ?? null },
+            { label: c.denominadorLabel || "Denominador", valor: d ?? null },
+          ],
+        };
+      }
 
       case "faixa_contagem": {
         // ADM-005: conta por faixa e o "resultado" é o total em aberto;
