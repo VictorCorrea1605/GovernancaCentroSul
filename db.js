@@ -294,6 +294,27 @@
     return usuarioDaLinha(data[0]);
   }
 
+  // ------------------------------------------ gestão de acessos (admin) --
+  // Criar/bloquear/excluir login e trocar senha exigem a chave secreta do
+  // Supabase, que nunca vem para o navegador. Por isso tudo passa pela
+  // Edge Function "gerenciar-acessos", que confere se quem chama é
+  // administrador ativo antes de fazer qualquer coisa.
+  async function gerenciarAcessos(acao, dados) {
+    const { data, error } = await _sb.functions.invoke("gerenciar-acessos", {
+      body: Object.assign({ acao: acao }, dados || {}),
+    });
+    if (error) {
+      let msg = error.message || "Falha ao falar com o servidor de acessos.";
+      try {
+        const corpo = error.context && (await error.context.json());
+        if (corpo && corpo.erro) msg = corpo.erro;
+      } catch (e) { /* mantém a mensagem original */ }
+      throw new Error(msg);
+    }
+    if (data && data.erro) throw new Error(data.erro);
+    return data;
+  }
+
   // ------------------------------------ competências (fatos canônicos) ---
 
   async function lerCompetencia(indicadorId, competencia) {
@@ -502,6 +523,7 @@
     listarCategorias,
     listarUsuarios,
     salvarUsuario,
+    gerenciarAcessos,
     salvarIndicador,
     removerIndicador,
     lerCompetencia,

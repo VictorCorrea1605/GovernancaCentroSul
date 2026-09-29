@@ -106,6 +106,27 @@
   line-height: 1.45;
 }
 
+#tela-login .login-erro.ok {
+  border-color: var(--verde);
+  background: var(--verde-wash);
+  color: var(--verde);
+}
+
+#tela-login .login-link {
+  display: block;
+  margin: 12px auto 0;
+  padding: 4px 6px;
+  background: none;
+  border: 0;
+  color: var(--brand-navy);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#tela-login [hidden] { display: none !important; }
+
 #tela-login .login-aviso {
   margin: 16px 0 0;
   font-size: 11.5px;

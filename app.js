@@ -31,6 +31,8 @@
     lupaAberta: null, // indicadorId
     editAberto: null, // indicadorId
     respEditAberto: null, // usuarioId | "__novo__"
+    // Aba Acessos (só administradores) — ver viewAcessos()
+    acessos: { lista: null, carregando: false, erro: null, eu: null, busca: "", modal: null },
     unsubs: [],
     // "ano" pilota a Grade do Ano (12 meses de uma vez); "focoComp" rola/realça
     // uma linha específica ao chegar vindo da lupa; "modoAvancadoComp" abre o
@@ -388,6 +390,7 @@
       else if (State.view === "indicadores") main.innerHTML = viewIndicadores();
       else if (State.view === "responsaveis") main.innerHTML = viewResponsaveis();
       else if (State.view === "historico") main.innerHTML = viewHistorico();
+      else if (State.view === "acessos") main.innerHTML = viewAcessos();
       renderModais();
       wireViewEvents();
     } catch (e) {
@@ -403,6 +406,7 @@
   function renderTopbar() {
     const bar = $("#topbar");
     const tabs = [["dashboard", "Dashboard"], ["atualizar", "Atualizar"], ["indicadores", "Indicadores"], ["responsaveis", "Responsáveis"], ["historico", "Histórico"]];
+    if (ehAdmin()) tabs.push(["acessos", "Acessos"]);
     bar.innerHTML = `
       <div class="topbar-row">
         <div class="brand"><span class="logo-chip"><img src="logo.png" alt="Âmbar Energia" /></span><span class="sub"><strong>One Page Executivo</strong><br/>Gestão Administrativa · Regional Centro Sul</span></div>
@@ -923,7 +927,7 @@
     State.indicadores.forEach((ind) => { if (ind.responsavelId) contagem[ind.responsavelId] = (contagem[ind.responsavelId] || 0) + 1; });
     return `
       <div class="status-line">👤 <strong>Responsáveis</strong> = a mesma tabela de usuários do sistema — evita cadastro duplicado quando o login corporativo (Microsoft Entra ID) for ligado na versão publicada. Hoje o vínculo com a conta Microsoft (<span class="mono">entraId</span>) fica em branco e é preenchido automaticamente no primeiro acesso de cada pessoa.</div>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="novo-responsavel">+ Novo responsável</button></div>
+      ${ehAdmin() ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="novo-responsavel">+ Novo responsável</button></div>` : `<p class="hint" style="margin:0 0 10px">Cadastro e edição de responsáveis são feitos por administradores.</p>`}
       <div class="ind-table-wrap"><table class="ind-table">
         <thead><tr><th>Nome</th><th>E-mail corporativo</th><th>Perfil</th><th>Conta Microsoft (Entra ID)</th><th>Indicadores vinculados</th><th>Status</th><th></th></tr></thead>
         <tbody>${State.usuarios.map((u) => `
@@ -934,7 +938,7 @@
             <td>${u.entraId ? '<span class="status-pill verde"><span class="dot"></span>vinculada</span>' : '<span class="status-pill sem_informacao"><span class="dot"></span>pendente (login simulado)</span>'}</td>
             <td>${contagem[u.id] || 0}</td>
             <td>${u.ativo !== false ? '<span class="status-pill verde"><span class="dot"></span>ativo</span>' : '<span class="status-pill sem_informacao"><span class="dot"></span>inativo</span>'}</td>
-            <td><button class="editbtn" data-edit-resp="${u.id}">Editar</button></td>
+            <td>${ehAdmin() ? `<button class="editbtn" data-edit-resp="${u.id}">Editar</button>` : ""}</td>
           </tr>`).join("")}</tbody>
       </table></div>`;
   }
@@ -966,10 +970,284 @@
             </select>
           </div>
         </div>
-        <p class="hint">Perfis de acesso (administrador/gestor/operacional) já ficam salvos no cadastro — a aplicação de permissões por perfil entra quando o login corporativo real (Entra ID) estiver ligado.</p>
+        <p class="hint">Só administradores cadastram pessoas e gerenciam acessos (aba Acessos). Colocar o status como Inativo corta o acesso da pessoa aos dados na hora; para bloquear também o login, use Bloquear na aba Acessos.</p>
         <button type="submit" class="btn primary">${novo ? "Cadastrar responsável" : "Salvar alterações"}</button>
       </form>
     </div></div>`;
+  }
+
+  // ------------------------------------------------------------- acessos
+  // Gestão de logins (só administradores): criar acesso, senha provisória,
+  // link/e-mail de redefinição, bloquear/desbloquear e excluir. Toda ação
+  // passa pela Edge Function "gerenciar-acessos" (ver Db.gerenciarAcessos),
+  // que confere no servidor se quem pede é administrador ativo — esconder a
+  // aba aqui é só conveniência, não é a trava de segurança.
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function ehAdmin() {
+    const eu = window.Auth && window.Auth.usuarioLogado();
+    return !!(eu && eu.perfil === "administrador");
+  }
+
+  function gerarSenhaProvisoria() {
+    const letras = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz";
+    const numeros = "23456789";
+    const todos = letras + numeros;
+    const n = new Uint32Array(12);
+    (window.crypto || window.msCrypto).getRandomValues(n);
+    let s = "";
+    for (let i = 0; i < 12; i++) s += todos[n[i] % todos.length];
+    // garante ao menos um número
+    return s.slice(0, 11) + numeros[n[11] % numeros.length];
+  }
+
+  async function carregarAcessos() {
+    State.acessos.carregando = true;
+    State.acessos.erro = null;
+    render();
+    try {
+      const r = await window.Db.gerenciarAcessos("listar");
+      State.acessos.lista = r.lista || [];
+      State.acessos.eu = r.eu;
+    } catch (e) {
+      State.acessos.erro = e.message || String(e);
+    } finally {
+      State.acessos.carregando = false;
+      render();
+    }
+  }
+
+  function situacaoAcesso(a) {
+    if (a.ativo === false) return ["vermelho", "Bloqueado"];
+    if (!a.conta) return ["sem_informacao", "Sem login (aguarda primeiro acesso)"];
+    if (!a.conta.emailConfirmado) return ["amarelo", "E-mail não confirmado"];
+    if (a.conta.trocarSenha) return ["amarelo", "Senha provisória"];
+    return ["verde", "Ativo"];
+  }
+
+  function dataHora(iso) {
+    if (!iso) return "nunca";
+    const d = new Date(iso);
+    return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function viewAcessos() {
+    if (!ehAdmin()) {
+      return `<div class="empty-state"><div class="big">🔒</div>Somente administradores podem gerenciar acessos.</div>`;
+    }
+    const A = State.acessos;
+    if (A.lista === null && !A.carregando && !A.erro) setTimeout(carregarAcessos, 0);
+    const busca = (A.busca || "").toLowerCase();
+    const lista = (A.lista || []).filter((a) => !busca || (a.nome + " " + a.email).toLowerCase().includes(busca));
+    const cont = { ativos: 0, bloqueados: 0, semLogin: 0 };
+    (A.lista || []).forEach((a) => {
+      if (a.ativo === false) cont.bloqueados++;
+      else if (!a.conta) cont.semLogin++;
+      else cont.ativos++;
+    });
+    return `
+      <div class="status-line">🔐 <strong>Acessos</strong> — crie logins, defina senha provisória, envie link de redefinição, bloqueie ou exclua acessos. Bloquear corta o acesso na hora e preserva o histórico; excluir apaga o login e o cadastro da pessoa.</div>
+      <div class="filterbar" style="align-items:flex-end">
+        <label>Buscar<input type="text" id="ac-busca" value="${esc(A.busca || "")}" placeholder="nome ou e-mail" /></label>
+        <span class="hint" style="align-self:center">${cont.ativos} com login · ${cont.semLogin} sem login · ${cont.bloqueados} bloqueado(s)</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn ghost" id="ac-recarregar">${A.carregando ? "Carregando…" : "Atualizar lista"}</button>
+        <button class="btn primary" id="ac-novo">+ Novo acesso</button>
+      </div>
+      ${A.erro ? `<div class="empty-state"><div class="big">⚠️</div><h3>Não foi possível carregar os acessos</h3><p>${esc(A.erro)}</p></div>` : ""}
+      ${A.lista === null && !A.erro ? `<div class="empty-state">Carregando acessos…</div>` : ""}
+      ${A.lista !== null ? `<div class="ind-table-wrap"><table class="ind-table">
+        <thead><tr><th>Pessoa</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th style="text-align:right">Ações</th></tr></thead>
+        <tbody>${lista.map((a) => {
+          const [cor, rotulo] = situacaoAcesso(a);
+          const souEu = a.id === A.eu;
+          const botoes = [];
+          botoes.push(`<button class="editbtn" data-ac="senha" data-id="${esc(a.id)}" title="Define uma senha que a pessoa troca no próximo login">${a.conta ? "Senha provisória" : "Criar login"}</button>`);
+          if (a.conta) {
+            botoes.push(`<button class="editbtn" data-ac="link" data-id="${esc(a.id)}" title="Gera um link para você enviar por Teams/WhatsApp">Link de redefinição</button>`);
+            botoes.push(`<button class="editbtn" data-ac="email" data-id="${esc(a.id)}" title="O Supabase envia o link por e-mail">Enviar e-mail</button>`);
+          }
+          if (!souEu) {
+            botoes.push(a.ativo === false
+              ? `<button class="editbtn" data-ac="desbloquear" data-id="${esc(a.id)}">Desbloquear</button>`
+              : `<button class="editbtn" data-ac="bloquear" data-id="${esc(a.id)}">Bloquear</button>`);
+            botoes.push(`<button class="editbtn" data-ac="excluir" data-id="${esc(a.id)}" style="color:var(--vermelho)">Excluir</button>`);
+          }
+          return `<tr>
+            <td><strong>${esc(a.nome)}</strong>${souEu ? ' <span class="hint">(você)</span>' : ""}<br/><span class="mono" style="font-size:11.5px;color:var(--muted)">${esc(a.email)}</span></td>
+            <td>${PERFIL_LABEL[a.perfil] || esc(a.perfil)}</td>
+            <td><span class="status-pill ${cor}"><span class="dot"></span>${rotulo}</span></td>
+            <td style="font-size:12px">${a.conta ? dataHora(a.conta.ultimoAcesso) : "—"}</td>
+            <td style="text-align:right;white-space:normal"><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${botoes.join("")}</div></td>
+          </tr>`;
+        }).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--muted)">Nenhuma pessoa encontrada.</td></tr>`}</tbody>
+      </table></div>` : ""}`;
+  }
+
+  function acessoPorId(id) { return (State.acessos.lista || []).find((a) => a.id === id) || null; }
+
+  function drawerAcesso() {
+    const M = State.acessos.modal;
+    if (!M) return "";
+    const a = M.id ? acessoPorId(M.id) : null;
+    const cab = (id, titulo) => `<div class="dhead"><div><div class="id">${esc(id)}</div><h2>${esc(titulo)}</h2></div><button class="close-btn" id="ac-fechar">✕</button></div>`;
+    const erro = M.erro ? `<div class="field-errors" style="margin:10px 0;color:var(--vermelho)">${esc(M.erro)}</div>` : "";
+    const ocupado = M.ocupado ? "disabled" : "";
+    let corpo = "";
+
+    if (M.tipo === "novo") {
+      corpo = `${cab("Novo acesso", "Cadastrar pessoa e login")}
+        <form id="ac-form">
+          <div class="form-row"><div class="field" style="flex:1"><label>Nome completo *</label><input type="text" id="ac-nome" required /></div></div>
+          <div class="form-row"><div class="field" style="flex:1"><label>E-mail *</label><input type="email" id="ac-email" required placeholder="nome@ambarenergia.com.br" /></div></div>
+          <div class="form-row"><div class="field"><label>Perfil</label><select id="ac-perfil">
+            <option value="operacional">Operacional</option><option value="gestor">Gestor</option><option value="administrador">Administrador</option>
+          </select></div></div>
+          <div class="form-row"><div class="field" style="flex:1"><label>Como a pessoa vai entrar?</label>
+            <select id="ac-forma">
+              <option value="senha">Eu defino uma senha provisória agora</option>
+              <option value="primeiro">A própria pessoa cria a senha em "Primeiro acesso"</option>
+            </select></div></div>
+          <div class="form-row" id="ac-bloco-senha"><div class="field" style="flex:1"><label>Senha provisória</label>
+            <div style="display:flex;gap:6px"><input type="text" id="ac-senha" class="mono" value="${gerarSenhaProvisoria()}" minlength="8" style="flex:1" /><button type="button" class="btn ghost" id="ac-gerar">Gerar outra</button></div>
+            <span class="hint">No primeiro login a pessoa será obrigada a trocar esta senha.</span></div></div>
+          ${erro}
+          <button type="submit" class="btn primary" ${ocupado}>${M.ocupado ? "Salvando…" : "Criar acesso"}</button>
+        </form>`;
+    } else if (M.tipo === "senha" && a) {
+      corpo = `${cab(a.email, a.conta ? "Definir senha provisória" : "Criar login")}
+        <p class="hint">${a.conta ? "A senha atual deixa de funcionar." : "Cria a conta de login desta pessoa."} No próximo login ${esc(a.nome.split(" ")[0])} será obrigado(a) a escolher uma senha pessoal.</p>
+        <form id="ac-form">
+          <div class="form-row"><div class="field" style="flex:1"><label>Senha provisória</label>
+            <div style="display:flex;gap:6px"><input type="text" id="ac-senha" class="mono" value="${gerarSenhaProvisoria()}" minlength="8" style="flex:1" /><button type="button" class="btn ghost" id="ac-gerar">Gerar outra</button></div></div></div>
+          ${erro}
+          <button type="submit" class="btn primary" ${ocupado}>${M.ocupado ? "Salvando…" : "Salvar senha provisória"}</button>
+        </form>`;
+    } else if (M.tipo === "confirmar" && a) {
+      const textos = {
+        bloquear: [`Bloquear o acesso de ${a.nome}?`, "A pessoa perde o acesso imediatamente, inclusive se estiver com o painel aberto. Cadastro, vínculos com indicadores e histórico continuam preservados. Dá para desbloquear depois.", "Bloquear acesso"],
+        desbloquear: [`Desbloquear ${a.nome}?`, "A pessoa volta a entrar com a mesma senha de antes.", "Desbloquear"],
+        excluir: [`Excluir ${a.nome}?`, `Apaga o login e o cadastro. ${M.vinculos ? `Os ${M.vinculos} indicador(es) sob responsabilidade desta pessoa ficarão sem responsável.` : ""} O histórico de lançamentos continua com o nome dela. Esta ação não pode ser desfeita — se a ideia é só impedir a entrada, prefira Bloquear.`, "Excluir definitivamente"],
+        email: [`Enviar link de redefinição para ${a.email}?`, "O Supabase envia um e-mail com link para criar nova senha. Se o e-mail não chegar (limite de envio ou spam), use \"Link de redefinição\" e envie você mesmo.", "Enviar e-mail"],
+      }[M.acao];
+      corpo = `${cab(a.email, textos[0])}
+        <p style="font-size:13px;line-height:1.55;margin:12px 0 16px">${esc(textos[1])}</p>
+        ${erro}
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" id="ac-confirmar" ${ocupado} ${M.acao === "excluir" || M.acao === "bloquear" ? 'style="background:var(--vermelho);border-color:var(--vermelho);color:#fff"' : ""}>${M.ocupado ? "Aguarde…" : textos[2]}</button>
+          <button class="btn ghost" id="ac-cancelar">Cancelar</button>
+        </div>`;
+    } else if (M.tipo === "feito") {
+      corpo = `${cab(M.subtitulo || "", M.titulo)}
+        <p style="font-size:13px;line-height:1.55;margin:12px 0">${esc(M.texto)}</p>
+        ${M.copiar ? `<textarea readonly class="mono" id="ac-copiar-texto" rows="${M.copiar.length > 60 ? 4 : 1}" style="width:100%;font-size:12px">${esc(M.copiar)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary" id="ac-copiar">Copiar</button><button class="btn ghost" id="ac-cancelar">Fechar</button></div>` : `<button class="btn primary" id="ac-cancelar">Fechar</button>`}`;
+    } else {
+      return "";
+    }
+    return `<div class="overlay" id="ac-overlay"><div class="drawer">${corpo}</div></div>`;
+  }
+
+  async function executarAcesso(acao, dados, aoConcluir) {
+    const M = State.acessos.modal;
+    M.ocupado = true; M.erro = null; render();
+    try {
+      const r = await window.Db.gerenciarAcessos(acao, dados);
+      await aoConcluir(r);
+      State.acessos.lista = null; // recarrega a lista com a situação nova
+      if (State.acessos.modal === M) M.ocupado = false;
+      await carregarAcessos();
+      // mantém a tela de Responsáveis/filtros em dia com o cadastro
+      State.usuarios = await window.Db.listarUsuarios();
+      render();
+    } catch (e) {
+      M.ocupado = false; M.erro = e.message || String(e); render();
+    }
+  }
+
+  function wireAcessos() {
+    const busca = $("#ac-busca");
+    if (busca) busca.addEventListener("input", (e) => {
+      State.acessos.busca = e.target.value;
+      const pos = e.target.selectionStart;
+      render();
+      const novo = $("#ac-busca"); if (novo) { novo.focus(); novo.setSelectionRange(pos, pos); }
+    });
+    const rec = $("#ac-recarregar"); if (rec) rec.addEventListener("click", carregarAcessos);
+    const novo = $("#ac-novo"); if (novo) novo.addEventListener("click", () => { State.acessos.modal = { tipo: "novo" }; render(); });
+
+    $$("[data-ac]").forEach((b) => b.addEventListener("click", async () => {
+      const acao = b.dataset.ac, id = b.dataset.id;
+      if (acao === "senha") { State.acessos.modal = { tipo: "senha", id }; render(); return; }
+      if (acao === "link") {
+        b.disabled = true; b.textContent = "Gerando…";
+        try {
+          const r = await window.Db.gerenciarAcessos("link_redefinicao", { id, redirectTo: location.origin + location.pathname });
+          const a = acessoPorId(id);
+          State.acessos.modal = { tipo: "feito", titulo: "Link de redefinição", subtitulo: a ? a.email : "",
+            texto: "Envie este link para a pessoa (Teams, WhatsApp, e-mail). Ele abre o painel direto na tela de criar nova senha, funciona uma única vez e expira em cerca de 1 hora.",
+            copiar: r.link };
+        } catch (e) {
+          State.acessos.modal = null; window.Auth.avisar(e.message);
+        }
+        render(); return;
+      }
+      const vinculos = State.indicadores.filter((i) => i.responsavelId === id).length;
+      State.acessos.modal = { tipo: "confirmar", acao, id, vinculos };
+      render();
+    }));
+
+    const overlay = $("#ac-overlay");
+    if (!overlay) return;
+    const fechar = () => { State.acessos.modal = null; render(); };
+    overlay.addEventListener("click", (e) => { if (e.target === overlay && !State.acessos.modal.ocupado) fechar(); });
+    const bf = $("#ac-fechar"); if (bf) bf.addEventListener("click", fechar);
+    const bc = $("#ac-cancelar"); if (bc) bc.addEventListener("click", fechar);
+    const bg = $("#ac-gerar"); if (bg) bg.addEventListener("click", () => { $("#ac-senha").value = gerarSenhaProvisoria(); });
+    const forma = $("#ac-forma");
+    if (forma) forma.addEventListener("change", () => { $("#ac-bloco-senha").style.display = forma.value === "senha" ? "" : "none"; });
+    const bcp = $("#ac-copiar");
+    if (bcp) bcp.addEventListener("click", async () => {
+      const t = $("#ac-copiar-texto");
+      try { await navigator.clipboard.writeText(t.value); } catch (e) { t.select(); document.execCommand("copy"); }
+      toast("Copiado.");
+    });
+
+    const M = State.acessos.modal;
+    const form = $("#ac-form");
+    if (form && M.tipo === "novo") form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const comSenha = $("#ac-forma").value === "senha";
+      const dados = { nome: $("#ac-nome").value.trim(), email: $("#ac-email").value.trim(), perfil: $("#ac-perfil").value, senha: comSenha ? $("#ac-senha").value : undefined };
+      executarAcesso("criar", dados, async () => {
+        State.acessos.modal = comSenha
+          ? { tipo: "feito", titulo: "Acesso criado", subtitulo: dados.email, texto: `Passe para ${dados.nome} o endereço do painel, o e-mail (${dados.email}) e a senha provisória abaixo. No primeiro login a pessoa escolhe uma senha pessoal.`, copiar: dados.senha }
+          : { tipo: "feito", titulo: "Pessoa cadastrada", subtitulo: dados.email, texto: `Peça para ${dados.nome} abrir o painel, ir em "Primeiro acesso" e criar a senha usando o e-mail ${dados.email}.` };
+      });
+    });
+    if (form && M.tipo === "senha") form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const senha = $("#ac-senha").value;
+      const a = acessoPorId(M.id);
+      executarAcesso("senha_provisoria", { id: M.id, senha }, async () => {
+        State.acessos.modal = { tipo: "feito", titulo: "Senha provisória definida", subtitulo: a ? a.email : "", texto: "Passe esta senha para a pessoa. No próximo login ela será obrigada a escolher uma senha pessoal.", copiar: senha };
+      });
+    });
+    const bok = $("#ac-confirmar");
+    if (bok && M.tipo === "confirmar") bok.addEventListener("click", () => {
+      const a = acessoPorId(M.id);
+      const mapa = { bloquear: "bloquear", desbloquear: "desbloquear", excluir: "excluir", email: "enviar_email_redefinicao" };
+      const msgs = {
+        bloquear: "Acesso bloqueado.", desbloquear: "Acesso desbloqueado.", excluir: "Acesso excluído.",
+        email: "E-mail de redefinição enviado. Se não chegar em alguns minutos, use \"Link de redefinição\".",
+      };
+      executarAcesso(mapa[M.acao], { id: M.id, redirectTo: location.origin + location.pathname }, async () => {
+        State.acessos.modal = null;
+        toast(msgs[M.acao] + (a ? ` (${a.nome})` : ""));
+      });
+    });
   }
 
   // ------------------------------------------------------------- histórico
@@ -1311,6 +1589,7 @@
       if (ind) html += drawerAvancado(ind, State.atualizarSel.modoAvancadoComp);
     }
     if (State.importar.aberto) html += drawerImportar();
+    if (State.view === "acessos" && State.acessos.modal) html += drawerAcesso();
     root.innerHTML = html;
   }
 
@@ -1629,6 +1908,8 @@
         State.respEditAberto = null; render();
       });
     }
+
+    wireAcessos();
   }
 
   function aplicarVisibilidadeCondicional(ind) {
