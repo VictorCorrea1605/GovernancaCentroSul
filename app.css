@@ -512,10 +512,6 @@ footer.note { text-align: center; color: var(--muted); font-size: 11.5px; paddin
 .mrow-top { white-space: nowrap; overflow: hidden; }
 .mrow-unidade-block { white-space: nowrap; }
 .mm-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mm-cell.mm-na {
-  color: var(--muted); background: var(--surface-2); cursor: default;
-  box-shadow: inset 0 0 0 1px var(--border);
-}
 .mrow-result-block { flex-basis: 156px; }
 .mrow-resultado {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
