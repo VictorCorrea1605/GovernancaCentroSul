@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>One Page Executivo — Gestão Administrativa · Regional Centro Sul</title>
+<link rel="icon" href="logo.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="auth.css">
+</head>
+<body>
+
+<div class="shell">
+  <header class="topbar" id="topbar"></header>
+  <main id="main"><div class="empty-state">Carregando…</div></main>
+  <div id="modais"></div>
+</div>
+
+<!-- Biblioteca do Supabase: fica junto no repositório (não vem de CDN), para
+     o sistema continuar abrindo mesmo em rede corporativa restrita. -->
+<script src="supabase.js"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+
+<!-- Daqui para baixo é o código do protótipo, sem reescrita: os motores de
+     cálculo e as telas são os mesmos arquivos já validados. -->
+<script src="engines.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

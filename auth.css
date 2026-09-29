@@ -1,0 +1,131 @@
+/**
+ * Estilos exclusivos da tela de login e do aviso de erro.
+ *
+ * Ficam neste arquivo separado de propósito: `app.css` é exatamente o mesmo
+ * do protótipo aprovado, sem uma linha alterada. Aqui só entram as peças
+ * que não existiam lá, reaproveitando as mesmas variáveis de cor e as
+ * mesmas classes de campo/botão (.field, .btn) para não destoar.
+ */
+
+#tela-login {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: linear-gradient(160deg, #00303f 0%, #00496a 55%, #0a5a7d 100%);
+  font-family: "Jost", system-ui, -apple-system, sans-serif;
+}
+
+#tela-login .login-card {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 28px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+#tela-login .login-faixa {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--accent);
+}
+
+#tela-login .login-logo {
+  height: 26px;
+  margin-top: 6px;
+}
+
+#tela-login h1 {
+  margin: 10px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--brand-navy);
+}
+
+#tela-login .login-sub {
+  margin: 4px 0 22px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+#tela-login .login-abas {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+#tela-login .login-abas button {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+#tela-login .login-abas button.ativa {
+  background: var(--surface);
+  color: var(--brand-navy);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+#tela-login .field {
+  margin-bottom: 14px;
+}
+
+#tela-login .login-enviar {
+  width: 100%;
+  margin-top: 6px;
+}
+
+#tela-login .login-erro {
+  margin: 4px 0 12px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--vermelho);
+  background: var(--vermelho-wash);
+  color: var(--vermelho);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+#tela-login .login-aviso {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Aviso vermelho de falha (ex.: gravação recusada pelo banco). Usa a mesma
+   .toast do app, só trocando a cor para indicar erro. */
+.toast.toast-erro {
+  background: var(--vermelho);
+  color: #fff;
+  max-width: min(520px, 90vw);
+  border-radius: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Competências anteriores ao início de medição do indicador: existem na
+   grade e na matriz para o ano ficar completo, mas não aceitam lançamento. */
+.grade-ano tr.linha-na td { background: var(--surface-2); color: var(--muted); }
+.grade-ano td.gm-na { text-align: center; color: var(--muted); }
+.mm-cell.mm-na { color: var(--border-strong); cursor: default; background: transparent; }
